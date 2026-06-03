@@ -390,7 +390,7 @@ const _allComplete = (msg) => {
   _qs('.crawlerStatus_resultText[name="notfound"]')[0].value = notFoundUrls.slice().sort((a, b) => (a < b ? -1 : 1)).join('\n');
   _qs('.crawlerStatus_resultText[name="analytics"]')[0].value = JSON.stringify(analytics || {}, null, 2);
   _qs('.crawlerStatus_resultText[name="diff"]')[0].value = JSON.stringify(diff || {}, null, 2);
-  _qs('.crawlerStatus_resultText[name="tree"]')[0].value = treeHtml.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  _qs('.crawlerStatus_resultText[name="tree"]')[0].value = JSON.stringify(tree, null, 2);
 
   _qs('button[data-export]').forEach((btn) => {
     btn.addEventListener('click', () => {
