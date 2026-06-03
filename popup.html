@@ -66,7 +66,55 @@
     </div>
     <p>
       <button id="startButton">Start Crawling</button>
+      <button id="pauseButton" type="button">Pause</button>
+      <button id="resumeButton" type="button">Resume</button>
     </p>
+    <dl class="optionItem optionItemStandalone">
+      <dt>Performance</dt>
+      <dd>
+        <label for="concurrencyInput">Concurrency (non-async): </label>
+        <input id="concurrencyInput" type="number" min="1" max="10" value="3" />
+      </dd>
+    </dl>
+    <dl class="optionItem optionItemStandalone">
+      <dt>Compliance</dt>
+      <dd>
+        <label><input type="checkbox" id="respectRobots" checked /> Respect robots.txt / meta robots</label>
+      </dd>
+    </dl>
+    <dl class="optionItem optionItemStandalone">
+      <dt>Authentication</dt>
+      <dd>
+        <label for="customHeaders">Custom Headers (one per line: Header: Value)</label>
+        <textarea id="customHeaders" placeholder="Authorization: ******"></textarea>
+        <label for="customCookies">Custom Cookies (Cookie header value)</label>
+        <textarea id="customCookies" placeholder="session=abc; token=xyz"></textarea>
+      </dd>
+    </dl>
+    <dl class="optionItem optionItemStandalone">
+      <dt>Cloud Sync & Collaboration</dt>
+      <dd>
+        <label><input type="checkbox" id="useCloudSync" /> Use Chrome cloud sync for settings/history</label>
+        <label for="projectNote">Project Note</label>
+        <textarea id="projectNote" placeholder="Shared notes for this project"></textarea>
+      </dd>
+    </dl>
+    <dl class="optionItem optionItemStandalone">
+      <dt>Scheduling</dt>
+      <dd>
+        <label for="scheduleUrl">Scheduled crawl URL</label>
+        <input id="scheduleUrl" type="url" placeholder="https://example.com/" />
+        <label for="scheduleFrequency">Frequency</label>
+        <select id="scheduleFrequency">
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+        <button id="addScheduleButton" type="button">Add Schedule</button>
+        <ul id="scheduleList"></ul>
+      </dd>
+    </dl>
+    <p class="small" id="statusLine"></p>
     <div class="caption">
       *Cannot run simultaneously in multiple tabs.<br>
     </div>
