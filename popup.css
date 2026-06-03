@@ -1,0 +1,96 @@
+* {
+  font-size: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  box-sizing: border-box;
+}
+
+body {
+  width: 540px;
+}
+
+.wrap {
+  position: relative;
+  padding: 40px;
+}
+
+.wrapInner {
+  position: relative;
+}
+
+.option {
+  padding-bottom: 1em;
+}
+
+.optionToggleButton {
+  cursor: pointer;
+  display: inline-block;
+}
+
+.optionToggleButton::before {
+  content: '[+]';
+  padding-right: 0.5em;
+}
+
+.option.is_opened .optionToggleButton::before {
+  content: '[-]';
+}
+
+.optionMore {
+  border: 1px solid #eee;
+  border-radius: 2px;
+  padding: 1em;
+  display: none;
+}
+.option.is_opened .optionMore {
+  display: block;
+}
+.optionMore dl:not(:first-child) {
+  padding-top: 1em;
+}
+.optionMore dd {
+  position: relative;
+}
+.optionMore dd ul {
+  display: flex;
+}
+.optionMore dd ul + ul {
+  margin-top: 0.2em;
+  padding-top: 0.2em;
+  border-top: 1px solid #aaa;
+}
+.optionMore dd li {
+  white-space: nowrap;
+}
+.optionMore dd li:not(:first-child) {
+  padding-left: 1em;
+}
+.optionMore dd li label span {
+  font-size: 12px;
+  opacity: 0.6;
+}
+.optionMore dd textarea {
+  width: 100%;
+  height: 80px;
+  padding: 10px;
+}
+
+.small {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.caption {
+  padding-top: 1em;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.version {
+  position: absolute;
+  right: 0;
+  top: 0;
+  font-size: 10px;
+  opacity: 0.6;
+}

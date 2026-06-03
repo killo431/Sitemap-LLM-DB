@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>mount crawler</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="wrapInner">
+    <div class="option">
+      <div class="optionToggleButton">オプション</div>
+      <div class="optionMore">
+        <dl class="optionItem">
+          <dt>クロール対象</dt>
+          <dd>
+            <ul>
+              <li><input type="radio" name="targetAll" value="yes" id="targetAllYes" /><label for="targetAllYes">ドメイン内すべて</label></li>
+              <li><input type="radio" name="targetAll" value="no" id="targetAllNo" checked /><label for="targetAllNo">現在のディレクトリ以下</label></li>
+            </ul>
+            <ul>
+              <li><input type="radio" name="includeSubDomain" value="no" id="includeSubDomainNo" checked /><label for="includeSubDomainNo">サブドメイン違いは除外</label></li>
+              <li><input type="radio" name="includeSubDomain" value="yes" id="includeSubDomainYes" /><label for="includeSubDomainYes">サブドメイン違いも含める</label></li>
+            </ul>
+            <ul>
+              <li><input type="radio" name="skipSimilar" value="no" id="skipSimilarNo" checked /><label for="skipSimilarNo">省略なし</label></li>
+              <li><input type="radio" name="skipSimilar" value="yes" id="skipSimilarYes" /><label for="skipSimilarYes">似たURLをスキップ [実験的]</label></li>
+            </ul>
+          </dd>
+        </dl>
+        <dl class="optionItem">
+          <dt>非同期要素の取得</dt>
+          <dd>
+            <ul>
+              <li><input type="radio" name="async" value="no" id="asyncNo" checked /><label for="asyncNo">しない（高速）</label></li>
+              <li><input type="radio" name="async" value="yes" id="asyncYes" /><label for="asyncYes">する（低速）</label></li>
+            </ul>
+          </dd>
+        </dl>
+        <dl class="optionItem">
+          <dt>URLクエリ</dt>
+          <dd>
+            <ul>
+              <li><input type="radio" name="queryIgnore" value="yes" id="queryIgnoreYes" checked /><label for="queryIgnoreYes">無視する</label></li>
+              <li><input type="radio" name="queryIgnore" value="no" id="queryIgnoreNo" /><label for="queryIgnoreNo">無視しない</label></li>
+            </ul>
+          </dd>
+        </dl>
+        <dl class="optionItem">
+          <dt>低速モード（= サーバ負荷軽減）</dt>
+          <dd>
+            <ul>
+              <li><input type="radio" name="slow" value="no" id="slowNo" checked /><label for="slowNo">OFF</label></li>
+              <li><input type="radio" name="slow" value="yes" id="slowYes" /><label for="slowYes">ON</label></li>
+            </ul>
+          </dd>
+        </dl>
+        <dl class="optionItem">
+          <dt>除外ディレクトリ（改行で複数指定 / 正規表現可）</dt>
+          <dd>
+            <textarea name="ignoreDir"></textarea>
+            <p class="small">ex. ^/blog/.+, ^https://example.com</p>
+          </dd>
+        </dl>
+      </div>
+    </div>
+    <p>
+      <button id="startButton">クロール開始</button>
+    </p>
+    <div class="caption">
+      ＊複数タブでの同時実行はできません。<br>
+    </div>
+    <div class="version">
+      version: 1.8
+    </div>
+  </div>
+</div>
+  <script src="popup.js"></script>
+</body>
+</html>

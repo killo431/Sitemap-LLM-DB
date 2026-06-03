@@ -1,0 +1,107 @@
+.crawlerStatus * {
+  font-size: 14px !important;
+  color: #fff !important;
+  font-family: sans-serif !important;
+}
+.crawlerStatus *::selection {
+  background: #000 !important;
+  color: #fff !important;
+}
+.crawlerStatus textarea {
+  background-color: #fff !important;
+  color: #000 !important;
+  white-space: nowrap !important;
+}
+.crawlerStatus button {
+  appearance: none !important;
+  -ms-appearance: none !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+  outline: 0 !important;
+  resize: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  zoom: 1 !important;
+  border: none !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  font-family: inherit !important;
+  letter-spacing: inherit !important;
+  text-align: inherit !important;
+}
+
+#crawlerStatus {
+  position: fixed !important;
+  left: 40px;
+  right: 40px;
+  top: 40px;
+  bottom: 40px;
+  width: auto;
+  height: auto;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.85) !important;
+  z-index: 9999999999;
+  overflow-y: auto;
+  text-align: left !important;
+}
+
+.crawlerStatus_inner {
+  padding: 40px !important;
+}
+
+.crawlerStatus_msg {
+  line-height: 2em !important;
+}
+
+.crawlerStatus_resultTab {
+  display: flex;
+}
+
+.crawlerStatus_resultSection {
+  position: relative;
+}
+.crawlerStatus_resultSection:not(:first-child) {
+  padding-top: 20px;
+}
+
+.crawlerStatus_resultHead {
+  font-size: 18px !important;
+  padding-bottom: 10px !important;;
+}
+.crawlerStatus_resultHead a {
+  text-decoration: underline !important;
+  font-size: inherit !important;
+}
+.crawlerStatus_resultHead a:hover {
+  text-decoration: none !important;
+}
+
+.crawlerStatus_resultNav {
+  display: none !important;/* todo いったん非表示 */
+}
+.crawlerStatus_resultNav ul {
+  display: flex !important;;
+  padding-bottom: 10px !important;;
+}
+.crawlerStatus_resultNav li:not(:first-child) {
+  padding-left: 20px;
+}
+.crawlerStatus_resultNav button:before {
+  content: '';
+  display: inline-block;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  margin-right: 4px;
+}
+.crawlerStatus_resultNav button.is_active:before {
+  background: currentColor;
+}
+
+.crawlerStatus_resultText {
+  box-sizing: border-box;
+  width: 100%;
+  height: 150px;
+}
