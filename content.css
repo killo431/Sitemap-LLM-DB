@@ -105,3 +105,10 @@
   width: 100%;
   height: 150px;
 }
+.crawlerStatus_resultSection button {
+  border: 1px solid #fff !important;
+  padding: 6px 10px !important;
+  margin-right: 8px !important;
+  margin-bottom: 8px !important;
+  cursor: pointer !important;
+}

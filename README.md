@@ -7,6 +7,7 @@ A Chrome extension for crawling websites and generating sitemaps with XML export
 - **Website Crawling**: Automatically crawl websites and extract all internal links
 - **Sitemap Generation**: Generate comprehensive sitemaps with page titles, descriptions, and metadata
 - **XML Export**: Download sitemaps in standard XML format (sitename-sitemap.xml)
+- **Multi-Format Export**: XML, JSON, CSV, visual HTML, and sitemap index/parts for large sites
 - **Flexible Options**:
   - Crawl entire domain or current directory only
   - Include/exclude subdomains
@@ -15,6 +16,13 @@ A Chrome extension for crawling websites and generating sitemaps with XML export
   - Query parameter handling
   - Slow mode for reduced server load
   - Exclude specific directories with regex support
+  - Pause/resume crawl state
+  - Concurrency control for non-async crawling
+  - robots.txt/meta-robots compliance
+  - Custom headers/cookies for authenticated crawling
+  - Crawl scheduling with daily/weekly/monthly automation
+  - Diff detection against previous crawls
+  - Cloud-syncable project settings/history
 
 ## Installation
 
@@ -29,8 +37,9 @@ A Chrome extension for crawling websites and generating sitemaps with XML export
 2. Click the extension icon
 3. Configure crawling options (optional)
 4. Click "Start Crawling"
-5. Wait for the crawl to complete
-6. Click "Download XML Sitemap" to save the sitemap as an XML file
+5. Optionally pause/resume from popup controls
+6. Wait for the crawl to complete
+7. Download XML/JSON/CSV/HTML reports from the result panel
 
 ## XML Sitemap Format
 

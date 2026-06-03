@@ -75,6 +75,39 @@ body {
   height: 80px;
   padding: 10px;
 }
+.optionItemStandalone {
+  border: 1px solid #eee;
+  border-radius: 2px;
+  margin-top: 0.8em;
+  padding: 0.8em;
+}
+.optionItemStandalone dt {
+  font-weight: bold;
+  margin-bottom: 0.4em;
+}
+.optionItemStandalone dd textarea,
+.optionItemStandalone dd input[type="url"],
+.optionItemStandalone dd input[type="number"],
+.optionItemStandalone dd select {
+  width: 100%;
+  margin: 0.3em 0 0.6em 0;
+  padding: 0.4em;
+}
+#scheduleList {
+  max-height: 120px;
+  overflow-y: auto;
+}
+#scheduleList li {
+  border-top: 1px solid #eee;
+  padding: 6px 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+#pauseButton,
+#resumeButton {
+  margin-left: 8px;
+}
 
 .small {
   font-size: 12px;

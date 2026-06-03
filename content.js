@@ -1,44 +1,40 @@
 let _scrollTimeout = false;
+let _statusEl;
+let _requestOptions = {headers: {}, customCookies: ''};
+
+const _qs = (expr) => Array.prototype.slice.call(document.querySelectorAll(expr));
+const _range = (num) => Array.from({length: num}, (_, i) => i);
 
 const _domReady = () => {
-  if (document.readyState != 'loading') return Promise.resolve();
-  return new Promise((f, r) => {
-    document.addEventListener('DOMContentLoaded', f);
-  });
-}
+  if (document.readyState !== 'loading') return Promise.resolve();
+  return new Promise((f) => document.addEventListener('DOMContentLoaded', f));
+};
 
 Promise.race([
-  new Promise((f, r) => setTimeout(f, 5000)),
-  _domReady().then(() => {
-    return new Promise((f, r) => setTimeout(f, 100));
-  }),
+  new Promise((f) => setTimeout(f, 5000)),
+  _domReady().then(() => new Promise((f) => setTimeout(f, 100))),
 ]).then(() => {
-
   chrome.runtime.sendMessage({type: 'content_ready', url: location.href}, (res) => {
     res = res || {};
-    const {needSendHtml, isAsync, progressStatus} = res;
+    const {needSendHtml, isAsync, progressStatus, requestOptions} = res;
+    _requestOptions = requestOptions || _requestOptions;
+
     if (needSendHtml && isAsync) {
       _updateProgressStatus(progressStatus);
-
-      //start
       Promise.race([
-        new Promise((f, r) => setTimeout(f, 1000)),
-        new Promise((f, r) => window.addEventListener('load', f)),
-      ]).then(() => {
-        _scrollDown();
-      });
+        new Promise((f) => setTimeout(f, 1000)),
+        new Promise((f) => window.addEventListener('load', f)),
+      ]).then(() => _scrollDown());
 
-      //タイムアウト：ページ側でエラーがあるときにscroll検知が実行できないので
       setTimeout(() => {
         _scrollTimeout = true;
-        _sendHtml(_getHtml(), location.href);
+        _sendHtml(_getHtml(), location.href, location.href);
       }, 15 * 1000);
     }
   });
-
 });
 
-const _scrollTarget = (document.scrollingElement || document.documentElement);
+const _scrollTarget = document.scrollingElement || document.documentElement;
 const _scrollDown = () => {
   const oldTop = _scrollTarget.scrollTop;
   _scrollTarget.scrollTop = oldTop + 2000;
@@ -46,7 +42,7 @@ const _scrollDown = () => {
     const scrollableMore = document.body.offsetHeight > (_scrollTarget.scrollTop + window.innerHeight);
     if (oldTop === _scrollTarget.scrollTop && !scrollableMore) {
       if (_scrollTimeout) return;
-      _sendHtml(_getHtml(), location.href);
+      _sendHtml(_getHtml(), location.href, location.href);
     } else {
       _scrollDown();
     }
@@ -55,26 +51,26 @@ const _scrollDown = () => {
 
 const _getHtml = () => {
   const html = document.getElementsByTagName('html')[0];
-  return `
-  <html>
-  ${html.innerHTML}
-  </html>`;
-}
+  return `<html>${html.innerHTML}</html>`;
+};
 
-const _fetchHtml = (url, progressStatus) => {
+const _buildFetchHeaders = (requestOptions = {}) => {
+  const headers = {...(requestOptions.headers || {})};
+  if (requestOptions.customCookies) headers.Cookie = requestOptions.customCookies;
+  return headers;
+};
 
+const _fetchHtml = (url, progressStatus, requestOptions = _requestOptions) => {
   const currentHref = location.href.split('?')[0].split('#')[0];
   if (url === currentHref) {
-    console.log(_getHtml());
-    _sendHtml(_getHtml(), url);
+    _sendHtml(_getHtml(), url, url);
     return Promise.resolve();
   }
 
-  //別ドメインをfetchするときはページを移動する（httpsとhttpsの違いもあったりするので、ドメインでなくhttpからの比較）
   const newDomain = url.split('/').slice(0, 3).join('/');
   const currentDomain = location.href.split('/').slice(0, 3).join('/');
   if (newDomain !== currentDomain) {
-    chrome.runtime.sendMessage({type: 'fetch_pending', url: url}, (res) => {
+    chrome.runtime.sendMessage({type: 'fetch_pending', url}, () => {
       location.href = url;
     });
     return;
@@ -82,34 +78,28 @@ const _fetchHtml = (url, progressStatus) => {
 
   _updateProgressStatus(progressStatus);
 
-  //logoutしないように
   if (url.toLowerCase().includes('/logout/')) {
-    _sendHtml(`<html><head><title>logout</title></head><body></body></html>`, url);
+    _sendHtml('<html><head><title>logout</title></head><body></body></html>', url, url);
     return;
   }
 
   fetch(url, {
-    credentials   : 'same-origin',//ブラウザがもってる認証情報でbasic認証を突破
-    redirect      : 'follow',
+    credentials: 'same-origin',
+    redirect: 'follow',
     referrerPolicy: 'no-referrer',
+    headers: _buildFetchHeaders(requestOptions),
   })
     .then((res) => {
       if (!res.ok) throw Error(res.statusText);
-
       const res2 = res.clone();
-
-      return new Promise((f, r) => {
+      return new Promise((f) => {
         res.text().then((text) => {
           let irregularEncoding = '';
           const t = text.toLowerCase();
           if (t.includes('charset=shift_jis')) irregularEncoding = 'shift-jis';
           if (t.includes('charset=windows-31j')) irregularEncoding = 'Windows-31J';
 
-          if (!irregularEncoding) {
-            return f(text);
-          }
-
-          //shift_jisを変換
+          if (!irregularEncoding) return f(text);
           res2.arrayBuffer().then((arrayBuffer) => {
             const html = new TextDecoder(irregularEncoding).decode(arrayBuffer);
             f(html);
@@ -117,78 +107,58 @@ const _fetchHtml = (url, progressStatus) => {
         });
       });
     })
-    .then((html) => {
-      _sendHtml(html, url);
-    })
-    .catch((err) => {
-      console.log('err', err);
-      _sendHtml('', url);
-    });
+    .then((html) => _sendHtml(html, url, url))
+    .catch(() => _sendHtml('', url, url));
 };
 
-const _sendHtml = (html, url) => {
+const _sendHtml = (html, realUrl, requestedUrl) => {
   chrome.runtime.sendMessage({
-    type   : 'push',
-    info   : _html2info(html),
-    links  : _html2links(html),
-    realUrl: url,
-  }, (res) => {
-  });
+    type: 'push',
+    info: _html2info(html),
+    links: _html2links(html),
+    realUrl,
+    requestedUrl,
+  }, () => {});
 };
 
 const _html2info = (html) => {
-  const title = (html.split('<title>')[1] || '').split('</title>')[0];
-
+  const title = (html.split('<title>')[1] || '').split('</title>')[0] || '';
   let _description = '';
   let _ogImage = '';
+  let _robots = '';
+
   html.split('<meta ').slice(1).forEach((line) => {
-    const attrs = line.split('>')[0];
-    if (attrs.includes('name="description"')) {
-      _description = (attrs.match(/content="(.*?)"/) || [])[1];
-    }
-    if (attrs.includes('property="og:image"')) {
-      _ogImage = (attrs.match(/content="(.*?)"/) || [])[1];
-    }
+    const attrs = line.split('>')[0] || '';
+    if (attrs.includes('name="description"')) _description = (attrs.match(/content="(.*?)"/) || [])[1] || '';
+    if (attrs.includes('property="og:image"')) _ogImage = (attrs.match(/content="(.*?)"/) || [])[1] || '';
+    if (attrs.includes('name="robots"')) _robots = (attrs.match(/content="(.*?)"/) || [])[1] || '';
   });
 
+  const robots = (_robots || '').toLowerCase();
+
   return {
-    notFound   : !html,
-    title      : title || '',
-    description: _description || '',
-    ogImage    : _ogImage || '',
+    notFound: !html,
+    title,
+    description: _description,
+    ogImage: _ogImage,
+    noindex: robots.includes('noindex'),
+    nofollow: robots.includes('nofollow'),
   };
 };
 
 const _a = document.createElement('a');
 const _html2links = (html) => {
   const links = [];
-
   html.split('<a ').slice(1).forEach((line) => {
-    const attrs = line.split('>')[0];
+    const attrs = line.split('>')[0] || '';
     const href = (attrs.match(/href="(.*?)"/) || [])[1];
     if (!href) return;
-    if (href.toLowerCase().match(/\.(jpeg|jpg|png|gif|svg|zip|pdf)/)) return;
+    if (href.toLowerCase().match(/\.(jpeg|jpg|png|gif|svg|zip|pdf|mp4|mp3|woff|woff2)$/)) return;
     _a.href = href;
     const url = _a.href;
     if (!links.includes(url)) links.push(url);
   });
-
   return links;
-};
-
-let _statusEl;
-const _updateProgressStatus = (progressStatus) => {
-  _makeStatusEl();
-
-  if (!progressStatus) return;
-
-  _statusEl.querySelector('.crawlerStatus_msg').innerHTML = `
-Crawling...<br>
-<br>
-Done: ${progressStatus.doneCount}<br>
-Waiting: ${progressStatus.waitingCount + 1}<br>
-Total: ${progressStatus.doneCount + progressStatus.waitingCount + 1}<br>
-  `
 };
 
 const _makeStatusEl = () => {
@@ -205,50 +175,202 @@ const _makeStatusEl = () => {
   _statusEl.classList.add('crawlerStatus');
   document.body.appendChild(_statusEl);
 
-  _statusEl.innerHTML = `
-<div class="crawlerStatus_inner">
-  <div class="crawlerStatus_msg"></div>
-</div>
+  _statusEl.innerHTML = '<div class="crawlerStatus_inner"><div class="crawlerStatus_msg"></div></div>';
+};
+
+const _updateProgressStatus = (progressStatus) => {
+  _makeStatusEl();
+  if (!progressStatus) return;
+
+  const waiting = (progressStatus.waitingCount || 0) + (progressStatus.inProgressCount || 0);
+  const done = progressStatus.doneCount || 0;
+  _statusEl.querySelector('.crawlerStatus_msg').innerHTML = `
+Crawling...<br>
+<br>
+Done: ${done}<br>
+Waiting: ${waiting}<br>
+Total seen: ${done + waiting}<br>
   `;
 };
 
-const _allComplete = (msg) => {
-  if (!_statusEl) _makeStatusEl();
-  const {rootUrl, data, externalDomains, similarCheckUrls, skipSimilar, isSlow} = msg;
+const _escapeXml = (str = '') => String(str)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&apos;');
 
-  //404ページの数
-  const notFoundUrls = [];
-  data.forEach((item) => {
-    if (item.info.notFound) {
-      notFoundUrls.push(item.url);
+const _downloadText = (content, filename, mimeType = 'text/plain') => {
+  const blob = new Blob([content], {type: mimeType});
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(blobUrl);
+};
+
+const _buildTree = (sortedData, rootUrl) => {
+  const root = {name: rootUrl, children: {}};
+  sortedData.forEach((item) => {
+    const url = item.url;
+    const path = '/' + url.split('/').slice(3).join('/');
+    const parts = path.split('/').filter(Boolean);
+    let node = root;
+    if (!parts.length) {
+      node.children['/'] = node.children['/'] || {name: '/', url, children: {}};
+      return;
     }
+    parts.forEach((part, index) => {
+      if (!node.children[part]) {
+        const subPath = parts.slice(0, index + 1).join('/');
+        node.children[part] = {
+          name: part,
+          url: `${rootUrl}${subPath}${index === parts.length - 1 && !url.endsWith('/') ? '' : '/'}`,
+          children: {},
+        };
+      }
+      node = node.children[part];
+    });
   });
-  const notFoundCount = notFoundUrls.length;
-  const okCount = data.length - notFoundCount;
+  return root;
+};
 
-  //
+const _treeToHtml = (node) => {
+  const entries = Object.values(node.children || {});
+  if (!entries.length) return '';
+  const items = entries.map((child) => {
+    const childrenHtml = _treeToHtml(child);
+    return `<li><details open><summary><a href="${child.url}" target="_blank">${child.name}</a></summary>${childrenHtml || ''}</details></li>`;
+  }).join('');
+  return `<ul>${items}</ul>`;
+};
+
+const _allComplete = (msg) => {
+  _makeStatusEl();
+  const {rootUrl, data, externalDomains, similarCheckUrls, skipSimilar, analytics, diff, projectNote} = msg;
+
+  const sortedData = (data || []).slice().sort((a, b) => (a.url < b.url ? -1 : 1));
+  const notFoundUrls = sortedData.filter((item) => item.info.notFound).map((item) => item.url);
+  const notFoundCount = notFoundUrls.length;
+  const okCount = sortedData.length - notFoundCount;
+
+  const formatSitemapTable = () => {
+    const head = ['url', 'title', 'description', 'og:image', 'noindex', 'nofollow', 'redirect_src_url'];
+    if (skipSimilar) head.push('similar_url');
+
+    const rows = sortedData
+      .filter((item) => !item.info.notFound)
+      .map((item) => {
+        let hasSimilarUrl = false;
+        (similarCheckUrls || []).forEach((checkUrl) => {
+          try {
+            if (item.url.match(new RegExp(checkUrl))) hasSimilarUrl = true;
+          } catch (e) {
+            // ignore invalid regex
+          }
+        });
+        const cols = [
+          item.url,
+          (item.info.title || '').replace(/\s+/g, ' ').trim(),
+          (item.info.description || '').replace(/\s+/g, ' ').trim(),
+          item.info.ogImage || '',
+          item.info.noindex ? 'yes' : 'no',
+          item.info.nofollow ? 'yes' : 'no',
+          item.redirectSrcUrl || '',
+        ];
+        if (skipSimilar) cols.push(hasSimilarUrl ? 'yes' : 'no');
+        return cols.join('\t');
+      });
+
+    return `${head.join('\t')}\n${rows.join('\n')}`;
+  };
+
+  const toJson = () => JSON.stringify({rootUrl, projectNote, pages: sortedData, analytics, diff}, null, 2);
+
+  const toCsv = () => {
+    const head = ['url', 'title', 'description', 'ogImage', 'notFound', 'noindex', 'nofollow', 'redirectSrcUrl'];
+    const rows = sortedData.map((item) => {
+      const cells = [
+        item.url,
+        item.info.title || '',
+        item.info.description || '',
+        item.info.ogImage || '',
+        item.info.notFound ? 'true' : 'false',
+        item.info.noindex ? 'true' : 'false',
+        item.info.nofollow ? 'true' : 'false',
+        item.redirectSrcUrl || '',
+      ];
+      return cells.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',');
+    });
+    return `${head.join(',')}\n${rows.join('\n')}`;
+  };
+
+  const toXmlChunks = () => {
+    const currentDate = new Date().toISOString().split('T')[0];
+    const urls = sortedData.filter((item) => !item.info.notFound).map((item) => item.url);
+    const chunkSize = 50000;
+    const chunks = [];
+
+    for (let i = 0; i < urls.length; i += chunkSize) {
+      const partUrls = urls.slice(i, i + chunkSize);
+      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+      partUrls.forEach((url) => {
+        xml += `  <url>\n    <loc>${_escapeXml(url)}</loc>\n    <lastmod>${currentDate}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.5</priority>\n  </url>\n`;
+      });
+      xml += '</urlset>';
+      chunks.push(xml);
+    }
+
+    let indexXml = '';
+    if (chunks.length > 1) {
+      indexXml = '<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+      chunks.forEach((_, i) => {
+        indexXml += `  <sitemap>\n    <loc>${_escapeXml(rootUrl)}sitemap-part-${i + 1}.xml</loc>\n    <lastmod>${currentDate}</lastmod>\n  </sitemap>\n`;
+      });
+      indexXml += '</sitemapindex>';
+    }
+
+    return {chunks, indexXml};
+  };
+
+  const tree = _buildTree(sortedData, rootUrl);
+  const treeHtml = _treeToHtml(tree);
+  const htmlReport = `<!doctype html><html><head><meta charset="utf-8"><title>Sitemap Visual Report</title><style>body{font-family:sans-serif;padding:20px}ul{padding-left:20px}summary{cursor:pointer}</style></head><body><h1>Sitemap Visual Report</h1><p>${rootUrl}</p>${treeHtml}</body></html>`;
+
   _statusEl.innerHTML = `
 <div class="crawlerStatus_inner">
   <div class="crawlerStatus_msg">
-    Crawl has been completed!<br>
-    <br>
-    total: ${data.length}<br>
-    (ok: ${okCount} / not_found: ${notFoundCount})<br>
-    <br>
+    Crawl has been completed!<br><br>
+    total: ${sortedData.length}<br>
+    (ok: ${okCount} / not_found: ${notFoundCount})<br><br>
+    Project note: ${(projectNote || '-').replace(/</g, '&lt;')}<br>
   </div>
   <div class="crawlerStatus_result">
     <section class="crawlerStatus_resultSection">
-      <h2 class="crawlerStatus_resultHead">Sitemap (Copy and paste to <a href="https://sheets.new" target="_blank">Spreadsheet</a> or Excel)</h2>
-      <nav class="crawlerStatus_resultNav">
-        <ul class="crawlerStatus_resultNavOption" data-name="include404">
-          <li><button data-value="no">Exclude 404 pages</button></li>
-          <li><button data-value="yes">Include 404 pages</button></li>
-        </ul>
-      </nav>
+      <h2 class="crawlerStatus_resultHead">Exports</h2>
+      <button data-export="xml">Download XML Sitemap</button>
+      <button data-export="json">Download JSON</button>
+      <button data-export="csv">Download CSV</button>
+      <button data-export="html">Download Visual HTML</button>
+    </section>
+    <section class="crawlerStatus_resultSection">
+      <h2 class="crawlerStatus_resultHead">Analytics</h2>
+      <textarea class="crawlerStatus_resultText" name="analytics"></textarea>
+    </section>
+    <section class="crawlerStatus_resultSection">
+      <h2 class="crawlerStatus_resultHead">Diff (vs previous crawl)</h2>
+      <textarea class="crawlerStatus_resultText" name="diff"></textarea>
+    </section>
+    <section class="crawlerStatus_resultSection">
+      <h2 class="crawlerStatus_resultHead">Visual Sitemap Tree</h2>
+      <textarea class="crawlerStatus_resultText" name="tree"></textarea>
+    </section>
+    <section class="crawlerStatus_resultSection">
+      <h2 class="crawlerStatus_resultHead">Sitemap (Copy to Spreadsheet/Excel)</h2>
       <textarea class="crawlerStatus_resultText" name="sitemap" onfocus="this.select();"></textarea>
-      <div style="margin-top: 10px;">
-        <button id="downloadXmlButton" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Download XML Sitemap</button>
-      </div>
     </section>
     <section class="crawlerStatus_resultSection">
       <h2 class="crawlerStatus_resultHead">External Domains List</h2>
@@ -259,292 +381,55 @@ const _allComplete = (msg) => {
       <textarea class="crawlerStatus_resultText" name="notfound"></textarea>
     </section>
   </div>
-</div>
-  `;
+</div>`;
 
+  const siteName = rootUrl.replace(/\/$/, '').split('//')[1].replace(/\./g, '-');
 
-  //外部ドメイン
-  _qs('.crawlerStatus_resultText[name="externals"]')[0].value = externalDomains.sort((a, b) => a < b ? -1 : 1).join('\n');
+  _qs('.crawlerStatus_resultText[name="sitemap"]')[0].value = formatSitemapTable();
+  _qs('.crawlerStatus_resultText[name="externals"]')[0].value = (externalDomains || []).slice().sort((a, b) => (a < b ? -1 : 1)).join('\n');
+  _qs('.crawlerStatus_resultText[name="notfound"]')[0].value = notFoundUrls.slice().sort((a, b) => (a < b ? -1 : 1)).join('\n');
+  _qs('.crawlerStatus_resultText[name="analytics"]')[0].value = JSON.stringify(analytics || {}, null, 2);
+  _qs('.crawlerStatus_resultText[name="diff"]')[0].value = JSON.stringify(diff || {}, null, 2);
+  _qs('.crawlerStatus_resultText[name="tree"]')[0].value = JSON.stringify(tree, null, 2);
 
-  //404
-  _qs('.crawlerStatus_resultText[name="notfound"]')[0].value = notFoundUrls.sort((a, b) => a < b ? -1 : 1).join('\n');
-
-  //サイトマップ
-  const sortedData = data.sort((a, b) => a.url.split('/').join('') < b.url.split('/').join('') ? -1 : 1);//「/」がはいっているとうまくソートされない
-  const dataIdx = {};
-  let maxDepth = 0;
-  sortedData.forEach((item) => {
-    dataIdx[item.url] = item;
-    maxDepth = Math.max(maxDepth, item.url.split('/').length - 4);
-  });
-  // maxDepth = 10;//いったん10で固定
-
-  const _condition = {
-    include404: false,
-  };
-
-  const format = () => {
-    const headIndent = _range(maxDepth).map(() => '\t').join('');
-    const sitemapHead = _compact([
-      _condition.include404 ? '404' : null,
-      'name' + headIndent,
-      'dir' + headIndent,
-      'url',
-      skipSimilar ? 'similar_url' : null,
-      'title',
-      'description',
-      'og:image',
-      'redirect_src_url',
-    ]).join('\t');
-
-    const splitTitle = (title) => {
-      title = title.split('｜').join('|').split(' - ').join('|');
-      return title.split('|').map((word) => word.trim());
-    };
-
-    const rows = [];
-
-    sortedData.forEach((item) => {
-      const {info, url, redirectSrcUrl} = item;
-      const {notFound, title, description, ogImage} = info;
-
-      const dirArr = url.split('/');
-      const isTopLevel = !dirArr[3];//
-      const isRoot = url === rootUrl;//
-      const lastDirName = dirArr[dirArr.length - 1];
-      const isFile = !isTopLevel && lastDirName.includes('.');//「.html」とか
-      let upToParent = isFile ? 1 : 2;
-      let parentUrl = dirArr.slice(0, dirArr.length - upToParent).join('/') + '/';
-      let depth = parentUrl.split('/').length - 3;
-      let parentItem = dataIdx[parentUrl];
-      let dir = parentItem ? '/' + dirArr.slice(dirArr.length - upToParent).join('/') : '/' + dirArr.slice(3).join('/');
-      const backToParent = () => {
-        depth--;
-        upToParent++;
-        dir = '/' + dirArr.slice(dirArr.length - upToParent).join('/');
-        parentUrl = dirArr.slice(0, dirArr.length - upToParent).join('/') + '/';
-        parentItem = dataIdx[parentUrl];
-      };
-      if (!isTopLevel && !parentItem && !isRoot) {
-        backToParent();
-        if (!parentItem) backToParent();
-        if (!parentItem) backToParent();
-        if (!parentItem) backToParent();
-        if (!parentItem) backToParent();
+  _qs('button[data-export]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const type = btn.getAttribute('data-export');
+      if (type === 'json') {
+        _downloadText(toJson(), `${siteName}-sitemap.json`, 'application/json');
+        return;
+      }
+      if (type === 'csv') {
+        _downloadText(toCsv(), `${siteName}-sitemap.csv`, 'text/csv');
+        return;
+      }
+      if (type === 'html') {
+        _downloadText(htmlReport, `${siteName}-sitemap-visual.html`, 'text/html');
+        return;
       }
 
-      const indentBefore = _range(depth).map(() => '\t').join('');
-      const indentAfter = _range(maxDepth - depth).map(() => '\t').join('');
-
-      //似たURL形式のページあり
-      let hasSimilarUrl = false;
-      similarCheckUrls.forEach((checkUrl) => {
-        if (url.match(new RegExp(checkUrl))) hasSimilarUrl = true;
+      const {chunks, indexXml} = toXmlChunks();
+      chunks.forEach((chunk, i) => {
+        const suffix = chunks.length > 1 ? `-part-${i + 1}` : '';
+        _downloadText(chunk, `${siteName}-sitemap${suffix}.xml`, 'application/xml');
       });
-
-      //ページ名
-      const titleArr = splitTitle(title);
-      let name = titleArr[0];
-      if (parentItem) {
-        //親と重複部分を除外
-        name = name.split(parentItem.info.title).join('').trim();
-
-        //親と同じタイトルになってしまった場合は後方一致
-        const parentTitleArr = splitTitle(parentItem.info.title);
-        if (name === parentTitleArr[0]) {
-          name = titleArr[titleArr.length - 1];
-          if (parentItem.info.title.includes(name)) name = '';//親に含まれる場合は後方一致も意味ないので空に
-        }
-      } else {
-        if (isTopLevel) {
-          // name = 'トップ';
-        }
-      }
-
-      const dirDecoded = decodeURIComponent(dir);//ブログなどURLに日本語が入っている場合に見やすくする
-      const mark404 = notFound ? '◯' : '-';
-      const markSimilar = hasSimilarUrl ? '◯' : '-';
-
-      if (!_condition.include404 && notFound) return null;
-
-      const row = _compact([
-        _condition.include404 ? mark404 : null,
-        indentBefore + name + indentAfter,
-        indentBefore + dirDecoded + indentAfter,
-        url,
-        skipSimilar ? markSimilar : null,
-        title,
-        description,
-        ogImage,
-        redirectSrcUrl,
-      ]).join('\t')
-        .split('\r\n').join('\n')
-        .split('\r').join('\n')
-        .split('\n').join(' ');
-
-      rows.push(row);
+      if (indexXml) _downloadText(indexXml, `${siteName}-sitemap-index.xml`, 'application/xml');
     });
-
-    const sitemapBody = rows.join('\n');
-    return sitemapHead + '\n' + sitemapBody;
-  };
-
-  const _resultEl = _qs('.crawlerStatus_resultText[name="sitemap"]')[0];
-  const _navChanged = () => {
-    _options.forEach((option) => {
-      let value = option.getValue();
-      if (value === 'yes') value = true;
-      else if (value === 'no') value = false;
-      _condition[option.getName()] = value;
-    });
-    _resultEl.value = format();
-    console.log('_condition', _condition);
-  }
-
-  class NavOption {
-    constructor(el) {
-      this._name = el.getAttribute('data-name');
-      this._values = [];
-      this._btns = Array.prototype.slice.call(el.querySelectorAll('button')).map((button, i) => {
-        this._values.push(button.getAttribute('data-value'));
-        button.addEventListener('click', this._changed.bind(this, i, false));
-        return button;
-      });
-      this._changed(0, true);
-    }
-
-    _changed(index, noEmit) {
-      if (this._index === index) return;
-      this._index = index;
-      this._value = this._values[index];
-      this._btns.forEach((button, i) => {
-        button.classList[i === index ? 'add' : 'remove']('is_active');
-      });
-      if (!noEmit) {
-        _navChanged();
-      }
-    }
-
-    getName() {
-      return this._name;
-    }
-
-    getValue() {
-      return this._value;
-    }
-  }
-
-  const _options = _qs('.crawlerStatus_resultNavOption').map((el) => {
-    return new NavOption(el);
   });
 
-  //start
-  _navChanged();
-
-
-  // Generate XML sitemap
-  const generateXmlSitemap = () => {
-    const domain = rootUrl.replace(/\/$/, '');
-    const siteName = domain.split('//')[1].replace(/\./g, '-');
-    const currentDate = new Date().toISOString().split('T')[0];
-    
-    let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n';
-    xmlContent += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
-    
-    sortedData.forEach((item) => {
-      const {info, url} = item;
-      const {notFound} = info;
-      
-      // Skip 404 pages in XML
-      if (notFound) return;
-      
-      xmlContent += '  <url>\n';
-      xmlContent += `    <loc>${url}</loc>\n`;
-      xmlContent += `    <lastmod>${currentDate}</lastmod>\n`;
-      xmlContent += '    <changefreq>weekly</changefreq>\n';
-      xmlContent += '    <priority>0.5</priority>\n';
-      xmlContent += '  </url>\n';
-    });
-    
-    xmlContent += '</urlset>';
-    
-    return {
-      content: xmlContent,
-      filename: `${siteName}-sitemap.xml`
-    };
-  };
-
-  // Add download button event listener
   setTimeout(() => {
-    const downloadBtn = document.getElementById('downloadXmlButton');
-    if (downloadBtn) {
-      downloadBtn.addEventListener('click', () => {
-        const {content, filename} = generateXmlSitemap();
-        
-        // Create blob and download
-        const blob = new Blob([content], { type: 'application/xml' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        alert(`XML sitemap downloaded as ${filename}`);
-      });
-    }
-  }, 100);
-
-
-  setTimeout(() => {
-    alert('crawl has been completed!');
+    alert('Crawl has been completed!');
   }, 33);
-}
-
-const _qs = (expr) => {
-  return Array.prototype.slice.call(document.querySelectorAll(expr));
-};
-
-
-const _getRadioValue = (name) => {
-  let res = '';
-  qs(`[name="${name}"]`).forEach((radio) => {
-    if (radio.checked) res = radio.value;
-  });
-  return res;
-};
-
-const _range = (num) => {
-  const res = [];
-  for (let i = 0; i < num; i++) {
-    res.push(i);
-  }
-  return res;
-}
-
-const _compact = (arr) => {
-  const newArr = [];
-  arr.forEach((item) => {
-    if (!item && item !== 0 && item !== '') return;//空文字列と0は許容
-    newArr.push(item);
-  });
-  return newArr;
 };
 
 chrome.runtime.onMessage.addListener((msg) => {
-  console.info('msg', msg);
-
   switch (msg.type) {
     case 'fetch':
-      _fetchHtml(msg.url, msg.progressStatus);
+      _fetchHtml(msg.url, msg.progressStatus, msg.requestOptions || _requestOptions);
       break;
-
     case 'all_complete':
       _allComplete(msg);
       break;
   }
-
-  return true;//空でもよいので返す
+  return true;
 });
