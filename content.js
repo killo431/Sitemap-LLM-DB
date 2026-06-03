@@ -183,11 +183,11 @@ const _updateProgressStatus = (progressStatus) => {
   if (!progressStatus) return;
 
   _statusEl.querySelector('.crawlerStatus_msg').innerHTML = `
-crawling...<br>
+Crawling...<br>
 <br>
-done: ${progressStatus.doneCount}<br>
-waiting: ${progressStatus.waitingCount + 1}<br>
-total: ${progressStatus.doneCount + progressStatus.waitingCount + 1}<br>
+Done: ${progressStatus.doneCount}<br>
+Waiting: ${progressStatus.waitingCount + 1}<br>
+Total: ${progressStatus.doneCount + progressStatus.waitingCount + 1}<br>
   `
 };
 
@@ -230,7 +230,7 @@ const _allComplete = (msg) => {
   _statusEl.innerHTML = `
 <div class="crawlerStatus_inner">
   <div class="crawlerStatus_msg">
-    crawl has been completed !<br>
+    Crawl has been completed!<br>
     <br>
     total: ${data.length}<br>
     (ok: ${okCount} / not_found: ${notFoundCount})<br>
@@ -238,21 +238,24 @@ const _allComplete = (msg) => {
   </div>
   <div class="crawlerStatus_result">
     <section class="crawlerStatus_resultSection">
-      <h2 class="crawlerStatus_resultHead">サイトマップ（<a href="https://sheets.new" target="_blank">スプレッドシート</a> or エクセルにコピペしてください）</h2>
+      <h2 class="crawlerStatus_resultHead">Sitemap (Copy and paste to <a href="https://sheets.new" target="_blank">Spreadsheet</a> or Excel)</h2>
       <nav class="crawlerStatus_resultNav">
         <ul class="crawlerStatus_resultNavOption" data-name="include404">
-          <li><button data-value="no">404ページを除外</button></li>
-          <li><button data-value="yes">404ページを含める</button></li>
+          <li><button data-value="no">Exclude 404 pages</button></li>
+          <li><button data-value="yes">Include 404 pages</button></li>
         </ul>
       </nav>
       <textarea class="crawlerStatus_resultText" name="sitemap" onfocus="this.select();"></textarea>
+      <div style="margin-top: 10px;">
+        <button id="downloadXmlButton" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Download XML Sitemap</button>
+      </div>
     </section>
     <section class="crawlerStatus_resultSection">
-      <h2 class="crawlerStatus_resultHead">外部ドメイン一覧</h2>
+      <h2 class="crawlerStatus_resultHead">External Domains List</h2>
       <textarea class="crawlerStatus_resultText" name="externals"></textarea>
     </section>
     <section class="crawlerStatus_resultSection">
-      <h2 class="crawlerStatus_resultHead">リンク切れURL一覧（404, not found）</h2>
+      <h2 class="crawlerStatus_resultHead">Broken Links (404, not found)</h2>
       <textarea class="crawlerStatus_resultText" name="notfound"></textarea>
     </section>
   </div>
@@ -437,6 +440,62 @@ const _allComplete = (msg) => {
 
   //start
   _navChanged();
+
+
+  // Generate XML sitemap
+  const generateXmlSitemap = () => {
+    const domain = rootUrl.replace(/\/$/, '');
+    const siteName = domain.split('//')[1].replace(/\./g, '-');
+    const currentDate = new Date().toISOString().split('T')[0];
+    
+    let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xmlContent += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+    
+    sortedData.forEach((item) => {
+      const {info, url} = item;
+      const {notFound} = info;
+      
+      // Skip 404 pages in XML
+      if (notFound) return;
+      
+      xmlContent += '  <url>\n';
+      xmlContent += `    <loc>${url}</loc>\n`;
+      xmlContent += `    <lastmod>${currentDate}</lastmod>\n`;
+      xmlContent += '    <changefreq>weekly</changefreq>\n';
+      xmlContent += '    <priority>0.5</priority>\n';
+      xmlContent += '  </url>\n';
+    });
+    
+    xmlContent += '</urlset>';
+    
+    return {
+      content: xmlContent,
+      filename: `${siteName}-sitemap.xml`
+    };
+  };
+
+  // Add download button event listener
+  setTimeout(() => {
+    const downloadBtn = document.getElementById('downloadXmlButton');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', () => {
+        const {content, filename} = generateXmlSitemap();
+        
+        // Create blob and download
+        const blob = new Blob([content], { type: 'application/xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        alert(`XML sitemap downloaded as ${filename}`);
+      });
+    }
+  }, 100);
 
 
   setTimeout(() => {
