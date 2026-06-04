@@ -1,0 +1,17 @@
+{
+  "name": "local-mcp-server",
+  "startup_command": "node",
+  "args": [
+    "./dist/mcp/server.js"
+  ],
+  "env": {
+    "MCP_API_KEY": "<MCP_API_KEY>",
+    "MCP_BASE_URL": "<MCP_BASE_URL>"
+  },
+  "description": "Local MCP server configuration for development and validation.",
+  "safety_notes": [
+    "Review file system access before startup.",
+    "Review network access and outbound destinations.",
+    "Use least-privilege credentials and rotate tokens regularly."
+  ]
+}
